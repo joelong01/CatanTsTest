@@ -3,7 +3,7 @@ import { TestContext, GameHeader, ResponseTypeOld, ServiceError, UserProfile, Ga
 import { CatanGames, GameAction, RegularGame } from './Models/game_models';
 
 export class ProxyHelper {
-    public static  handleResponse<T>(response: T | ServiceError): T {
+    public static handleResponse<T>(response: T | ServiceError): T {
         if (response instanceof ServiceError) {
             console.log("ERROR: {%o}", response);
             throw new Error(`panic: ${response}`);
@@ -69,6 +69,7 @@ export class CatanServiceProxy {
             url: requestUrl,
             headers: allHeaders,
             data: body,
+            httpsAgent: new (require('https').Agent)({ rejectUnauthorized: false })
         };
 
         try {
