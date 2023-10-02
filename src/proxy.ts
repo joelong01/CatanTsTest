@@ -47,7 +47,7 @@ export class CatanServiceProxy {
         body?: B
     ): Promise<R | ServiceError> {
         const requestUrl = this.hostName + url;
-
+        console.log(`${method}:${url}`);
         const allHeaders: Record<string, string> = {
             ...headers,
         };
@@ -71,10 +71,12 @@ export class CatanServiceProxy {
             data: body,
             httpsAgent: new (require('https').Agent)({ rejectUnauthorized: false })
         };
-
+        let status: number = 0;
         try {
             const response: AxiosResponse = await axios(requestConfig);
+            status = response.status;
             if (response.status >= 200 && response.status < 300) {
+
                 return response.data as R;
             } else {
                 // Here, we are assuming that the server returned a ServiceError object in its body
@@ -87,8 +89,10 @@ export class CatanServiceProxy {
                 );
             }
         } catch (error) {
+
             if (error instanceof AxiosError) {
                 if (error.response) {
+                    status = error.response.status;
                     // Here, we assume the server returned a ServiceError object as the error response
                     const serviceError = error.response.data as ServiceError;
                     return new ServiceError(
@@ -98,15 +102,17 @@ export class CatanServiceProxy {
                         serviceError.GameError
                     );
                 } else {
+                    status = 500;
                     // If there's no response, it means the request never reached the server or the server didn't reply
                     return new ServiceError(
                         error.message,
-                        error.code === 'ECONNABORTED' ? 408 : 500, // 408 for timeout, 500 for other errors
+                        status,
                         { ErrorInfo: 'Network or Axios error' },
                         {} as GameError
                     );
                 }
             } else {
+                status = 500;
                 return new ServiceError(
                     `Unexpected error: ${error}`,  // Providing as much context as you can
                     500,                                   // Default to 500 - internal server error
@@ -114,6 +120,8 @@ export class CatanServiceProxy {
                     {} as GameError
                 );
             }
+        } finally {
+            console.log(`status: ${status}`);
         }
     }
 
@@ -304,13 +312,13 @@ export class CatanServiceProxy {
 
     }
 
-    connect(): Promise<void | ServiceError> {
-        const url = `/auth/api/v1/lobby/connect`;
+    joinLobby(): Promise<void | ServiceError> {
+        const url = `/auth/api/v1/lobby/join`;
 
         return this.post<void, void>(url);
     }
-    disconnect(): Promise<void | ServiceError> {
-        const url = `/auth/api/v1/lobby/disconnect`;
+    leaveLobby(): Promise<void | ServiceError> {
+        const url = `/auth/api/v1/lobby/leave`;
 
         return this.post(url);
     }

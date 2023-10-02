@@ -50,7 +50,7 @@ export class GameWorkerManager {
     
 
     public async Start(): Promise<void> {
-        var connect_result = await this.proxy.connect();
+        var connect_result = await this.proxy.joinLobby();
         ProxyHelper.handleResponse<void>(connect_result);
 
         this.postMessage({ type: 'init', data: { authToken: this.proxy.getAuthToken(), useCosmos: this.proxy.useCosmos() } });
