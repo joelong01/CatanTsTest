@@ -15,9 +15,9 @@ export class ProxyHelper {
 
 export class CatanServiceProxy {
 
-    private hostName: string;
-    private testContext?: TestContext;
-    private authToken?: string;
+    hostName: string;
+    testContext?: TestContext;
+    authToken?: string;
 
     constructor(hostName: string, testContext?: TestContext, authToken?: string) {
         this.hostName = hostName;
@@ -32,6 +32,8 @@ export class CatanServiceProxy {
     public getAuthToken(): string | undefined {
         return this.authToken;
     }
+
+
 
     public useCosmos(): boolean | undefined {
         return this.testContext?.UseCosmosDb;
@@ -60,8 +62,8 @@ export class CatanServiceProxy {
             allHeaders['Authorization'] = `Bearer ${this.authToken}`;
         }
 
-        if (this.testContext) {
-            allHeaders['Test'] = JSON.stringify(this.testContext);
+        if (this. testContext) {
+            allHeaders[GameHeader.TEST] = JSON.stringify(this.testContext);
         }
 
         const requestConfig: AxiosRequestConfig = {

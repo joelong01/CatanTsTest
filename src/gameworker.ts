@@ -50,6 +50,11 @@ export class GameWorkerManager {
     
 
     public async Start(): Promise<void> {
+
+        if (!this.proxy.testContext){
+            throw new Error("Test Proxy not set and it should be");
+        }
+
         var connect_result = await this.proxy.joinLobby();
         ProxyHelper.handleResponse<void>(connect_result);
 
