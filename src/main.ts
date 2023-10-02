@@ -1,5 +1,5 @@
 import CatanServiceProxy, { ProxyHelper } from "./proxy"
-import { TestContext, UserProfile, UserType } from './Models/shared_models';
+import { ServiceError, TestContext, UserProfile, UserType } from './Models/shared_models';
 import { loadAdminProfileFromConfig } from "./testHelpers";
 import assert from "assert";
 import { GameWorkerManager } from "./gameworker";
@@ -47,8 +47,12 @@ import { GameWorkerManager } from "./gameworker";
     };
     proxy.setTestContext(testContext);
     let registerTestUserResponse = await proxy.registerTestUser(main_profile, test_password);
-    let returned_profile = ProxyHelper.handleResponse<UserProfile>(registerTestUserResponse);
-    console.log("profile returned from register_test_user: %o", returned_profile);
+    if (registerTestUserResponse instanceof ServiceError) {
+        console.log("error returned from registerTestUser: %o", (registerTestUserResponse as ServiceError).Status);
+    } else {
+        let returned_profile = ProxyHelper.handleResponse<UserProfile>(registerTestUserResponse);
+        console.log("profile returned from register_test_user: %o", returned_profile);
+    }
 
 
     loginResponse = await proxy.login(main_profile.Pii?.Email as string, test_password);
