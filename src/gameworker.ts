@@ -140,6 +140,7 @@ export class GameWorkerManager {
             let newGameResponse = await this.proxy.newBoard(this.game!.GameId);
             let game = ProxyHelper.handleResponse<RegularGame>(newGameResponse);
             console.log("new game created: %o", game);
+
         }
     }
 

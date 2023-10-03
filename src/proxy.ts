@@ -201,6 +201,12 @@ export class CatanServiceProxy {
         return this.post<void, RegularGame>(url);
     }
 
+    reloadGame(gameId: string): Promise<RegularGame | ServiceError> {
+        const url = `/auth/api/v1/games/reload/${gameId}`;
+        
+        return this.post<void, RegularGame>(url);
+    }
+
     newBoard(gameId: string): Promise<RegularGame | ServiceError> {
         const url = `/auth/api/v1/games/shuffle/${gameId}`;
         return this.post<void, RegularGame>(url);

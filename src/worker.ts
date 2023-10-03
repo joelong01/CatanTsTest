@@ -1,9 +1,10 @@
 // worker.ts
 import { parentPort } from 'worker_threads';
 import CatanServiceProxy from "./proxy";
-import { CatanMessage, TestContext, CatanMessageMap, isCatanMessage } from './Models/shared_models';
+import { CatanMessage, TestContext, CatanMessageMap, isCatanMessage, ServiceError } from './Models/shared_models';
 import { WorkerMessage, WorkerInitData } from './gameworker';
 import { AxiosError } from 'axios';
+import { RegularGame } from './Models/game_models';
 
 parentPort?.on('message', (message: WorkerMessage) => {
     console.log("parentPort?.on: ", message);
@@ -22,7 +23,7 @@ parentPort?.on('message', (message: WorkerMessage) => {
 async function longPollingLoop(authToken: string, useCosmos: boolean) {
 
     let proxy = new CatanServiceProxy("https://localhost:8080", new TestContext(useCosmos), authToken);
-
+    var gameId: string | undefined;
     let index: number = 0;
 
     for (; ;) {
@@ -35,16 +36,32 @@ async function longPollingLoop(authToken: string, useCosmos: boolean) {
                 console.log("long_poll.  message=%o", message);
                 const messageType = getMessageType(message);
                 if (messageType && Object.prototype.hasOwnProperty.call(message, messageType)) {
+                    if (messageType === "GameCreated") {
+                        gameId = message.GameCreated?.GameId as string;
+                    }
                     parentPort?.postMessage({ type: messageType, data: message[messageType] });
                 }
                 index++;
             } else {
-                // Handle error or retry logic
-                await new Promise(res => setTimeout(res, 1000)); // 1 second delay before retry
+                var version_response;
+                do {
+                    // Handle error or retry logic
+                    await new Promise(res => setTimeout(res, 10000)); // 10 second delay before retry
+                    version_response = proxy.getVersion();
 
-                //
-                // we can get here if the connection was reset and the id is bad
-                proxy = new CatanServiceProxy("https://localhost:8080", new TestContext(useCosmos), authToken);
+                } while (version_response instanceof ServiceError);
+
+                // we've come out of the loop, so service must be running again -- tell it to load the game
+                if (gameId) {
+                    var connect_result = await proxy.joinLobby();
+                    if (!(connect_result instanceof ServiceError)) {
+                        let load_response = await proxy.reloadGame(gameId);
+                        if (!(load_response instanceof ServiceError)) {
+
+                            parentPort?.postMessage({ type: "GameUpdate", data: load_response as RegularGame })
+                        }
+                    }
+                }
             }
         }
         catch (e: unknown) {
