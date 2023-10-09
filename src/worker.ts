@@ -37,8 +37,8 @@ async function longPollingLoop(authToken: string) {
                 console.log("long_poll.  message=%o", message);
                 const messageType = getMessageType(message);
                 if (messageType && Object.prototype.hasOwnProperty.call(message, messageType)) {
-                    if (messageType === "GameCreated") {
-                        gameId = message.gameCreated?.GameId as string;
+                    if (messageType === "gameCreated") {
+                        gameId = message.gameCreated?.gameId as string;
                     }
                     parentPort?.postMessage({ type: messageType, data: message[messageType] });
                 }
