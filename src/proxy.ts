@@ -1,9 +1,11 @@
 import axios, { AxiosError, AxiosRequestConfig, AxiosResponse } from 'axios';
-import { TestContext, GameHeader, ResponseTypeOld, ServiceError, UserProfile, GameError, CatanMessage, Invitation, InvitationResponseData } from './Models/shared_models';
+import { TestCallContext, GameHeader, ServiceError, UserProfile, GameError, CatanMessage, Invitation, 
+    InvitationResponseData, LoginHeaderData, ProfileStorage } from './Models/shared_models';
 import { CatanGames, GameAction, RegularGame } from './Models/game_models';
 
+
 export class ProxyHelper {
-    public static handleResponse<T>(response: T | ServiceError): T {
+    public static getResponseOrThrow<T>(response: T | ServiceError): T {
         if (response instanceof ServiceError) {
             console.log("ERROR: {%o}", response);
             throw new Error(`panic: ${response}`);
@@ -11,17 +13,30 @@ export class ProxyHelper {
 
         return response as T;
     }
+
+    public static split<T>(response: T | ServiceError): { ok: T | undefined, err: ServiceError | undefined } {
+        if (response instanceof ServiceError) {
+            return { ok: undefined, err: response };
+        }
+        return { ok: response, err: undefined };
+    }
+
+    public static isError<T>(response: T | ServiceError): boolean {
+        return response instanceof ServiceError;
+    }
+
+    public static isSuccess<T>(response: T | ServiceError): boolean {
+        return !this.isError(response);
+    }
 }
 
 export class CatanServiceProxy {
 
     hostName: string;
-    testContext?: TestContext;
     authToken?: string;
 
-    constructor(hostName: string, testContext?: TestContext, authToken?: string) {
+    constructor(hostName: string, authToken?: string) {
         this.hostName = hostName;
-        this.testContext = testContext;
         this.authToken = authToken;
     }
 
@@ -34,14 +49,6 @@ export class CatanServiceProxy {
     }
 
 
-
-    public useCosmos(): boolean | undefined {
-        return this.testContext?.UseCosmosDb;
-    }
-
-    public setTestContext(testContext: TestContext | undefined) {
-        this.testContext = testContext;
-    }
     private async sendRequest<B, R>(
         method: 'GET' | 'POST' | 'PUT' | 'DELETE',
         url: string,
@@ -60,10 +67,6 @@ export class CatanServiceProxy {
 
         if (this.authToken) {
             allHeaders['Authorization'] = `Bearer ${this.authToken}`;
-        }
-
-        if (this. testContext) {
-            allHeaders[GameHeader.TEST] = JSON.stringify(this.testContext);
         }
 
         const requestConfig: AxiosRequestConfig = {
@@ -109,7 +112,7 @@ export class CatanServiceProxy {
                     return new ServiceError(
                         error.message,
                         status,
-                        { ErrorInfo: 'Network or Axios error' },
+                        { errorInfo: 'Network or Axios error' },
                         {} as GameError
                     );
                 }
@@ -118,7 +121,7 @@ export class CatanServiceProxy {
                 return new ServiceError(
                     `Unexpected error: ${error}`,  // Providing as much context as you can
                     500,                                   // Default to 500 - internal server error
-                    { AzError: 'Unknown error' },          // Indicate it's an unknown error
+                    { azError: 'Unknown error' },          // Indicate it's an unknown error
                     {} as GameError
                 );
             }
@@ -166,10 +169,10 @@ export class CatanServiceProxy {
         return this.post<UserProfile, UserProfile>(url, headers, profile);
     }
 
-    login(username: string, password: string): Promise<string | ServiceError> {
+    login(username: string, password: string, profileLocation: ProfileStorage): Promise<string | ServiceError> {
+        const loginHeaderData = new LoginHeaderData(username, password, profileLocation);
         const headers: Record<string, string> = {
-            [GameHeader.PASSWORD]: password,
-            [GameHeader.EMAIL]: username,
+            [GameHeader.LOGIN_DATA]: JSON.stringify(loginHeaderData)
         };
 
         const url = '/api/v1/users/login';
@@ -195,15 +198,19 @@ export class CatanServiceProxy {
 
     newGame(gameType: CatanGames, game?: RegularGame): Promise<RegularGame | ServiceError> {
         const url = `/auth/api/v1/games/${gameType}`;
+        var headers: Record<string, string> | undefined;
+
         if (game) {
-            return this.post(url, undefined, game);
+            let testCallContext = new TestCallContext(undefined, game);
+            let json = JSON.stringify(testCallContext) as string;
+            headers = { [GameHeader.TEST]: json };
         }
-        return this.post<void, RegularGame>(url);
+        return this.post<void, RegularGame>(url, headers);
     }
 
     reloadGame(gameId: string): Promise<RegularGame | ServiceError> {
         const url = `/auth/api/v1/games/reload/${gameId}`;
-        
+
         return this.post<void, RegularGame>(url);
     }
 
@@ -266,9 +273,16 @@ export class CatanServiceProxy {
         return this.put<UserProfile, void>(url, undefined, newProfile);
     }
 
-    sendPhoneCode(): Promise<void | ServiceError> {
+    sendPhoneCode(code: number | undefined): Promise<void | ServiceError> {
         const url = "/auth/api/v1/users/phone/send-code";
-        return this.post<void, void>(url);
+        var headers: Record<string, string> | undefined;
+
+        if (code) {
+            let testCallContext = new TestCallContext(code, undefined);
+            let json = JSON.stringify(testCallContext) as string;
+            headers = { [GameHeader.TEST]: json };
+        }
+        return this.post<void, void>(url, headers);
     }
 
     validatePhoneCode(code: number): Promise<void | ServiceError> {

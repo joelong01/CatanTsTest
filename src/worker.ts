@@ -1,7 +1,7 @@
 // worker.ts
 import { parentPort } from 'worker_threads';
 import CatanServiceProxy from "./proxy";
-import { CatanMessage, TestContext, CatanMessageMap, isCatanMessage, ServiceError } from './Models/shared_models';
+import { CatanMessage, TestCallContext, CatanMessageMap, isCatanMessage, ServiceError } from './Models/shared_models';
 import { WorkerMessage, WorkerInitData } from './gameworker';
 import { AxiosError } from 'axios';
 import { RegularGame } from './Models/game_models';
@@ -12,17 +12,18 @@ parentPort?.on('message', (message: WorkerMessage) => {
     console.log("worker cosmos: ", message.data.useCosmos);
     switch (message.type) {
         case 'init': {
-            const { authToken, useCosmos } = message.data as WorkerInitData;
-            longPollingLoop(authToken, useCosmos);
+            const { authToken } = message.data as WorkerInitData;
+            longPollingLoop(authToken);
             break;
         }
         // handle other message types as needed
     }
 });
 
-async function longPollingLoop(authToken: string, useCosmos: boolean) {
+async function longPollingLoop(authToken: string) {
 
-    let proxy = new CatanServiceProxy("https://localhost:8080", new TestContext(useCosmos), authToken);
+    let proxy = new CatanServiceProxy("https://localhost:8080", authToken);
+
     var gameId: string | undefined;
     let index: number = 0;
 
@@ -37,7 +38,7 @@ async function longPollingLoop(authToken: string, useCosmos: boolean) {
                 const messageType = getMessageType(message);
                 if (messageType && Object.prototype.hasOwnProperty.call(message, messageType)) {
                     if (messageType === "GameCreated") {
-                        gameId = message.GameCreated?.GameId as string;
+                        gameId = message.gameCreated?.GameId as string;
                     }
                     parentPort?.postMessage({ type: messageType, data: message[messageType] });
                 }

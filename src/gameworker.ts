@@ -7,8 +7,7 @@ import { serialize } from 'v8';
 
 export interface WorkerInitData {
     authToken: string;
-    useCosmos: boolean;
-    // Add any other data you might need
+    // Add any other data as needed
 }
 
 export interface WorkerMessage {
@@ -51,16 +50,12 @@ export class GameWorkerManager {
 
     public async Start(): Promise<void> {
 
-        if (!this.proxy.testContext){
-            throw new Error("Test Proxy not set and it should be");
-        }
-
         var connect_result = await this.proxy.joinLobby();
-        ProxyHelper.handleResponse<void>(connect_result);
+        ProxyHelper.getResponseOrThrow<void>(connect_result);
 
-        this.postMessage({ type: 'init', data: { authToken: this.proxy.getAuthToken(), useCosmos: this.proxy.useCosmos() } });
+        this.postMessage({ type: 'init', data: { authToken: this.proxy.getAuthToken()} });
         var game_result = await this.proxy.newGame(CatanGames.Regular);
-        this.game = ProxyHelper.handleResponse<RegularGame>(game_result);
+        this.game = ProxyHelper.getResponseOrThrow<RegularGame>(game_result);
 
 
         //
@@ -70,28 +65,28 @@ export class GameWorkerManager {
     private handleMessage(message: ServiceMessage) {
         console.log("received message: ", message.type);
         switch (message.type) {
-            case 'GameUpdate':
+            case 'gameUpdate':
                 this.handleGameUpdate(message.data);
                 break;
-            case 'Invite':
+            case 'invite':
                 this.handleInvite(message.data);
                 break;
-            case 'InvitationResponse':
+            case 'invitationResponse':
                 this.handleInvitationResponse(message.data);
                 break;
-            case 'GameCreated':
+            case 'gameCreated':
                 this.handleGameCreated(message.data);
                 break;
-            case 'PlayerAdded':
+            case 'playerAdded':
                 this.handlePlayerAdded(message.data);
                 break;
-            case 'Started':
+            case 'started':
                 this.handleStarted(message.data);
                 break;
-            case 'Ended':
+            case 'ended':
                 this.handleEnded(message.data);
                 break;
-            case 'Error':
+            case 'error':
                 this.handleErrorData(message.data);
                 break;
             default:
@@ -121,24 +116,24 @@ export class GameWorkerManager {
         //
         //  lets add our first local players
         let localUserResponse = await this.proxy.getLocalUsers("Self");
-        const localUsers = ProxyHelper.handleResponse<UserProfile[]>(localUserResponse);
-        var addLocalUserResponse = await this.proxy.addLocalUserToLobby(localUsers[0].UserId as string, data.GameId);
-        ProxyHelper.handleResponse<void>(addLocalUserResponse);
-        addLocalUserResponse = await this.proxy.addLocalUserToLobby(localUsers[1].UserId as string, data.GameId);
-        ProxyHelper.handleResponse<void>(addLocalUserResponse);
+        const localUsers = ProxyHelper.getResponseOrThrow<UserProfile[]>(localUserResponse);
+        var addLocalUserResponse = await this.proxy.addLocalUserToLobby(localUsers[0].userId as string, data.gameId);
+        ProxyHelper.getResponseOrThrow<void>(addLocalUserResponse);
+        addLocalUserResponse = await this.proxy.addLocalUserToLobby(localUsers[1].userId as string, data.gameId);
+        ProxyHelper.getResponseOrThrow<void>(addLocalUserResponse);
     }
 
     private async handlePlayerAdded(data: string[]) {
         console.log('PlayerAdded received:', data);
         var getActionResponse = await this.proxy.getActions(this.game!.GameId);
-        var actions = ProxyHelper.handleResponse<GameAction[]>(getActionResponse);
+        var actions = ProxyHelper.getResponseOrThrow<GameAction[]>(getActionResponse);
         console.log("adding players:  valid actions: %o players: %o", actions, data);
         if (actions.includes(GameAction.Next)) {
             getActionResponse = await this.proxy.next(this.game!.GameId);
-            actions = ProxyHelper.handleResponse<GameAction[]>(getActionResponse);
+            actions = ProxyHelper.getResponseOrThrow<GameAction[]>(getActionResponse);
             console.log("now valid actions: ", actions);
             let newGameResponse = await this.proxy.newBoard(this.game!.GameId);
-            let game = ProxyHelper.handleResponse<RegularGame>(newGameResponse);
+            let game = ProxyHelper.getResponseOrThrow<RegularGame>(newGameResponse);
             console.log("new game created: %o", game);
 
         }
