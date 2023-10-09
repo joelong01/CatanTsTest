@@ -1,5 +1,5 @@
-import CatanServiceProxy, { ProxyHelper } from "./proxy"
-import { ProfileStorage, ServiceError, TestCallContext, UserProfile, UserType } from './Models/shared_models';
+import CatanServiceProxy from "./proxy"
+import { ProfileStorage, ServiceError, UserProfile, UserType } from './Models/shared_models';
 import { loadAdminProfileFromConfig } from "./testHelpers";
 import { GameWorkerManager } from "./gameworker";
 
@@ -13,8 +13,10 @@ import { GameWorkerManager } from "./gameworker";
 
     const admin_password = process.env.ADMIN_PASSWORD;
 
-    var loginResponse = await proxy.login(admin_profile.pii?.email as string, admin_password as string, ProfileStorage.CosmosDb);
-    let admin_auth_token = ProxyHelper.getResponseOrThrow<string>(loginResponse);
+    var admin_auth_token = (await proxy
+        .login(admin_profile.pii?.email as string, admin_password as string, ProfileStorage.CosmosDb))
+        .expect("login to work");
+
     proxy.setAuthToken(admin_auth_token);
 
     const test_phone_number = process.env.TEST_PHONE_NUMBER as string;
@@ -40,17 +42,16 @@ import { GameWorkerManager } from "./gameworker";
         validatedPhone: false
     };
 
-    let registerTestUserResponse = await proxy.registerTestUser(main_profile, test_password);
-    if (registerTestUserResponse instanceof ServiceError) {
-        console.log("error returned from registerTestUser: %o", (registerTestUserResponse as ServiceError).Status);
+    let result = (await proxy.registerTestUser(main_profile, test_password))
+    if (result.isOk()) {
+        console.log("profile returned from register_test_user: %o", result.getValue());
     } else {
-        let returned_profile = ProxyHelper.getResponseOrThrow<UserProfile>(registerTestUserResponse);
-        console.log("profile returned from register_test_user: %o", returned_profile);
+        let err = result.getError();
+        console.log("registerTestUser error: %o", err);
     }
+    let user_auth_token = (await proxy.login(main_profile.pii?.email as string, test_password, ProfileStorage.CosmosDbTest))
+        .expect("login of a newly registered test account should work");
 
-
-    loginResponse = await proxy.login(main_profile.pii?.email as string, test_password, ProfileStorage.CosmosDbTest);
-    let user_auth_token = ProxyHelper.getResponseOrThrow<string>(loginResponse);
     proxy.setAuthToken(user_auth_token);
 
     const local_user_1: UserProfile = {
@@ -82,19 +83,16 @@ import { GameWorkerManager } from "./gameworker";
     //  here we are going through the already registered users and making sure that the ones we want are registered
     //  it is possible to run these tests over and over, so we want to check and then create instead of simply
     //  creating and getting an error.  this is also what the client will probably do.
-    var localUserResponse = await proxy.getLocalUsers("Self");
-    const local_profiles = ProxyHelper.getResponseOrThrow<UserProfile[]>(localUserResponse);
+    var local_profiles = (await proxy.getLocalUsers("Self")).expect("to be able to get my own profile");
     console.log(local_profiles);
     if (!local_profiles.find(profile => profile.displayName.includes(local_user_1.displayName))) {
-        var createLocalUserResponse = await proxy.createLocalUser(local_user_1);
-        ProxyHelper.getResponseOrThrow<void>(createLocalUserResponse);
+        (await proxy.createLocalUser(local_user_1)).expect("to be able to create a local user");
     } else {
         console.log(local_user_1, "already exists");
     }
 
     if (!local_profiles.find(profile => profile.displayName.includes(local_user_2.displayName))) {
-        var createLocalUserResponse = await proxy.createLocalUser(local_user_2);
-        ProxyHelper.getResponseOrThrow<void>(createLocalUserResponse);
+        (await proxy.createLocalUser(local_user_2)).expect("success");
     } else {
         console.log(local_user_2, "already exists");
     }

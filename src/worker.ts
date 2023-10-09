@@ -32,8 +32,8 @@ async function longPollingLoop(authToken: string) {
             console.log("polling service.  index: ", index);
             const pollResponse = await proxy.longPoll();
             console.log("returned from longPoll", pollResponse);
-            var message = isCatanMessage(pollResponse);
-            if (message) {
+            if (pollResponse.isOk()) {
+                let message:CatanMessage = pollResponse.getValue();
                 console.log("long_poll.  message=%o", message);
                 const messageType = getMessageType(message);
                 if (messageType && Object.prototype.hasOwnProperty.call(message, messageType)) {
@@ -48,18 +48,17 @@ async function longPollingLoop(authToken: string) {
                 do {
                     // Handle error or retry logic
                     await new Promise(res => setTimeout(res, 10000)); // 10 second delay before retry
-                    version_response = proxy.getVersion();
+                    version_response = await proxy.getVersion();
 
-                } while (version_response instanceof ServiceError);
+                } while (version_response.isErr());
 
                 // we've come out of the loop, so service must be running again -- tell it to load the game
                 if (gameId) {
                     var connect_result = await proxy.joinLobby();
-                    if (!(connect_result instanceof ServiceError)) {
+                    if (connect_result.isOk()) {
                         let load_response = await proxy.reloadGame(gameId);
-                        if (!(load_response instanceof ServiceError)) {
-
-                            parentPort?.postMessage({ type: "GameUpdate", data: load_response as RegularGame })
+                        if (load_response.isOk()) {
+                            parentPort?.postMessage({ type: "GameUpdate", data: load_response.getValue() })
                         }
                     }
                 }

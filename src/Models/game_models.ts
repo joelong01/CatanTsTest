@@ -202,18 +202,18 @@ export type BuildingEntry = [BuildingKey, Building];
 export type TileEntry = [TileKey, Tile];
 
 export interface RegularGame {
-    GameId: string;
-    Players: PlayerEntry[];
-    Tiles: TileEntry[];
-    Harbors: HarborEntry[];
-    Roads: RoadEntry[];
-    Buildings: BuildingEntry[];
-    CurrentPlayerId: string;
-    PlayerOrder: string[];
-    StateData: StateData;
-    CreatorId: string;
-    BaronTile: TileKey;
-    ShuffleCount: number;
+    gameId: string;
+    players: PlayerEntry[];
+    tiles: TileEntry[];
+    harbors: HarborEntry[];
+    roads: RoadEntry[];
+    buildings: BuildingEntry[];
+    currentPlayerId: string;
+    playerOrder: string[];
+    stateData: StateData;
+    creatorId: string;
+    baronTile: TileKey;
+    shuffleCount: number;
 }
 
 

@@ -1,8 +1,7 @@
 import { Worker } from 'worker_threads';
 import { CatanGames, GameAction, RegularGame } from './Models/game_models';
-import { Invitation, InvitationResponseData, GameCreatedData, ErrorData, CatanMessageMap, ServiceError, UserProfile } from './Models/shared_models';
-import CatanServiceProxy, { ProxyHelper } from './proxy';
-import assert from 'assert';
+import { Invitation, InvitationResponseData, GameCreatedData, ErrorData, CatanMessageMap, UserProfile } from './Models/shared_models';
+import CatanServiceProxy from './proxy';
 import { serialize } from 'v8';
 
 export interface WorkerInitData {
@@ -46,18 +45,15 @@ export class GameWorkerManager {
         this.worker.postMessage(message);
     }
 
-    
+
 
     public async Start(): Promise<void> {
 
-        var connect_result = await this.proxy.joinLobby();
-        ProxyHelper.getResponseOrThrow<void>(connect_result);
-
-        this.postMessage({ type: 'init', data: { authToken: this.proxy.getAuthToken()} });
-        var game_result = await this.proxy.newGame(CatanGames.Regular);
-        this.game = ProxyHelper.getResponseOrThrow<RegularGame>(game_result);
+        (await this.proxy.joinLobby()).expect("joining lobby should work");
 
 
+        this.postMessage({ type: 'init', data: { authToken: this.proxy.getAuthToken() } });
+        this.game = (await this.proxy.newGame(CatanGames.Regular)).expect("newGame should not fail");
         //
         // next we should get a Created message
     }
@@ -115,25 +111,23 @@ export class GameWorkerManager {
         console.log('GameCreated received:', data);
         //
         //  lets add our first local players
-        let localUserResponse = await this.proxy.getLocalUsers("Self");
-        const localUsers = ProxyHelper.getResponseOrThrow<UserProfile[]>(localUserResponse);
-        var addLocalUserResponse = await this.proxy.addLocalUserToLobby(localUsers[0].userId as string, data.gameId);
-        ProxyHelper.getResponseOrThrow<void>(addLocalUserResponse);
-        addLocalUserResponse = await this.proxy.addLocalUserToLobby(localUsers[1].userId as string, data.gameId);
-        ProxyHelper.getResponseOrThrow<void>(addLocalUserResponse);
+        let localUsers = (await this.proxy.getLocalUsers("Self")).expect("getLocalUser to work");
+        (await this.proxy.addLocalUserToLobby(localUsers[0].userId as string, data.gameId))
+            .expect("addLocalUserToLobby should succeed");
+        (await this.proxy.addLocalUserToLobby(localUsers[1].userId as string, data.gameId))
+            .expect("addLocalUserToLobby should succeed");;
+
     }
 
     private async handlePlayerAdded(data: string[]) {
         console.log('PlayerAdded received:', data);
-        var getActionResponse = await this.proxy.getActions(this.game!.GameId);
-        var actions = ProxyHelper.getResponseOrThrow<GameAction[]>(getActionResponse);
+        var actions = (await this.proxy.getActions(this.game!.gameId)).expect("success");
+
         console.log("adding players:  valid actions: %o players: %o", actions, data);
         if (actions.includes(GameAction.Next)) {
-            getActionResponse = await this.proxy.next(this.game!.GameId);
-            actions = ProxyHelper.getResponseOrThrow<GameAction[]>(getActionResponse);
+            actions = (await this.proxy.next(this.game!.gameId)).expect("success");
             console.log("now valid actions: ", actions);
-            let newGameResponse = await this.proxy.newBoard(this.game!.GameId);
-            let game = ProxyHelper.getResponseOrThrow<RegularGame>(newGameResponse);
+            let game = (await this.proxy.newBoard(this.game!.gameId)).expect("success newBoard");
             console.log("new game created: %o", game);
 
         }
