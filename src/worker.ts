@@ -1,10 +1,10 @@
 // worker.ts
 import { parentPort } from 'worker_threads';
 import CatanServiceProxy from "./proxy";
-import { CatanMessage, TestCallContext, CatanMessageMap, isCatanMessage, ServiceError } from './Models/shared_models';
+import { CatanMessage, CatanMessageMap } from './Models/shared_models';
 import { WorkerMessage, WorkerInitData } from './gameworker';
 import { AxiosError } from 'axios';
-import { RegularGame } from './Models/game_models';
+
 
 parentPort?.on('message', (message: WorkerMessage) => {
     console.log("parentPort?.on: ", message);
@@ -22,9 +22,9 @@ parentPort?.on('message', (message: WorkerMessage) => {
 
 async function longPollingLoop(authToken: string) {
 
-    let proxy = new CatanServiceProxy("https://localhost:8080", authToken);
+    const proxy = new CatanServiceProxy("https://localhost:8080", authToken);
 
-    var gameId: string | undefined;
+    let gameId: string | undefined;
     let index: number = 0;
 
     for (; ;) {
@@ -33,18 +33,22 @@ async function longPollingLoop(authToken: string) {
             const pollResponse = await proxy.longPoll();
             console.log("returned from longPoll", pollResponse);
             if (pollResponse.isOk()) {
-                let message:CatanMessage = pollResponse.getValue();
+                const message: CatanMessage = pollResponse.getValue();
                 console.log("long_poll.  message=%o", message);
                 const messageType = getMessageType(message);
                 if (messageType && Object.prototype.hasOwnProperty.call(message, messageType)) {
-                    if (messageType === "gameCreated") {
-                        gameId = message.gameCreated?.gameId as string;
-                    }
+                    // let messageData: unknown = message[messageType];
+                    // if (messageType === "gameCreated") {
+                    //     gameId = message.gameCreated?.gameId as string;
+                    // } else if (messageType === "gameUpdate") {
+                    //   messageData = serviceToClientGame(messageData as ServiceGame) as ClientGame;
+                    // }
                     parentPort?.postMessage({ type: messageType, data: message[messageType] });
+
                 }
                 index++;
             } else {
-                var version_response;
+                let version_response;
                 do {
                     // Handle error or retry logic
                     await new Promise(res => setTimeout(res, 10000)); // 10 second delay before retry
@@ -54,9 +58,9 @@ async function longPollingLoop(authToken: string) {
 
                 // we've come out of the loop, so service must be running again -- tell it to load the game
                 if (gameId) {
-                    var connect_result = await proxy.joinLobby();
+                    const connect_result = await proxy.joinLobby();
                     if (connect_result.isOk()) {
-                        let load_response = await proxy.reloadGame(gameId);
+                        const load_response = await proxy.reloadGame(gameId);
                         if (load_response.isOk()) {
                             parentPort?.postMessage({ type: "GameUpdate", data: load_response.getValue() })
                         }

@@ -1,8 +1,12 @@
 import axios, { AxiosError, AxiosRequestConfig, AxiosResponse } from 'axios';
-import { TestCallContext, GameHeader, ServiceError, UserProfile, GameError, CatanMessage, Invitation, 
-    InvitationResponseData, LoginHeaderData, ProfileStorage } from './Models/shared_models';
-import { CatanGames, GameAction, RegularGame } from './Models/game_models';
-import {Err, Ok, Result, err, ok} from './Models/result'
+import {
+    TestCallContext, GameHeader, ServiceError, UserProfile, GameError, CatanMessage, Invitation,
+    InvitationResponseData, LoginHeaderData, ProfileStorage
+} from './Models/shared_models';
+import { CatanGameType, GameAction, ClientGame, serviceToClientGame, ServiceGame } from './Models/game_models';
+import { Err, Ok, Result, err } from './Models/result'
+import https from 'https';
+
 
 
 export class CatanServiceProxy {
@@ -43,13 +47,14 @@ export class CatanServiceProxy {
         if (this.authToken) {
             allHeaders['Authorization'] = `Bearer ${this.authToken}`;
         }
-
+        const httpsAgent = new https.Agent({ rejectUnauthorized: false });
+ 
         const requestConfig: AxiosRequestConfig = {
             method,
             url: requestUrl,
             headers: allHeaders,
             data: body,
-            httpsAgent: new (require('https').Agent)({ rejectUnauthorized: false })
+            httpsAgent: httpsAgent
         };
         let status: number = 0;
         try {
@@ -69,7 +74,7 @@ export class CatanServiceProxy {
                 );
             }
         } catch (error) {
-
+            console.log("Pxoxy Error! %o", error);
             if (error instanceof AxiosError) {
                 if (error.response) {
                     status = error.response.status;
@@ -166,27 +171,38 @@ export class CatanServiceProxy {
         return this.get<UserProfile>(`/auth/api/v1/profile/${id}`);
     }
 
-    newGame(gameType: CatanGames, game?: RegularGame): Promise<Result<RegularGame, ServiceError>> {
+    async newGame(gameType: CatanGameType, game?: ClientGame): Promise<Result<ClientGame, ServiceError>> {
         const url = `/auth/api/v1/games/${gameType}`;
-        var headers: Record<string, string> | undefined;
+        let headers: Record<string, string> | undefined;
 
         if (game) {
-            let testCallContext = new TestCallContext(undefined, game);
-            let json = JSON.stringify(testCallContext) as string;
+            const testCallContext = new TestCallContext(undefined, game);
+            const json = JSON.stringify(testCallContext) as string;
             headers = { [GameHeader.TEST]: json };
         }
-        return this.post<void, RegularGame>(url, headers);
+        const result: Result<ServiceGame, ServiceError> = await this.post<void, ServiceGame>(url, headers);
+        return transformGameResult(result);
+
     }
 
-    reloadGame(gameId: string): Promise<Result<RegularGame, ServiceError>> {
+    async reloadGame(gameId: string): Promise<Result<ClientGame, ServiceError>> {
         const url = `/auth/api/v1/games/reload/${gameId}`;
 
-        return this.post<void, RegularGame>(url);
+        const result = await this.post<void, ServiceGame>(url);
+        return transformGameResult(result);
     }
 
-    newBoard(gameId: string): Promise<Result<RegularGame, ServiceError>> {
+    async shuffleBoard(gameId: string, game: ClientGame | undefined): Promise<Result<ClientGame, ServiceError>> {
         const url = `/auth/api/v1/games/shuffle/${gameId}`;
-        return this.post<void, RegularGame>(url);
+        let headers: Record<string, string> | undefined;
+
+        if (game !== undefined) {
+            const testCallContext = new TestCallContext(undefined, game);
+            const json = JSON.stringify(testCallContext) as string;
+            headers = { [GameHeader.TEST]: json };
+        }
+        const result = await this.post<void, ServiceGame>(url, headers);
+        return transformGameResult(result);
     }
 
     getLobby(): Promise<Result<UserProfile[], ServiceError>> {
@@ -198,7 +214,7 @@ export class CatanServiceProxy {
         return this.get<GameAction[]>(url);
     }
 
-    longPoll(): Promise<Result<CatanMessage, ServiceError>> {
+    async longPoll(): Promise<Result<CatanMessage, ServiceError>> {
         const url = "/auth/api/v1/longpoll";
         return this.get<CatanMessage>(url);
     }
@@ -245,11 +261,11 @@ export class CatanServiceProxy {
 
     sendPhoneCode(code: number | undefined): Promise<Result<void, ServiceError>> {
         const url = "/auth/api/v1/users/phone/send-code";
-        var headers: Record<string, string> | undefined;
+        let headers: Record<string, string> | undefined;
 
         if (code) {
-            let testCallContext = new TestCallContext(code, undefined);
-            let json = JSON.stringify(testCallContext) as string;
+            const testCallContext = new TestCallContext(code, undefined);
+            const json = JSON.stringify(testCallContext) as string;
             headers = { [GameHeader.TEST]: json };
         }
         return this.post<void, void>(url, headers);
@@ -313,6 +329,23 @@ export class CatanServiceProxy {
         const url = `/auth/api/v1/lobby/leave`;
 
         return this.post(url);
+    }
+}
+
+function transformGameResult(result: Result<ServiceGame, ServiceError>): Result<ClientGame, ServiceError> {
+    if (result.isOk()) {
+        return new Ok(serviceToClientGame(result.getValue()));
+    } else {
+        const error = result.getError();
+        if (!error) {
+            return new Err(new ServiceError(
+                `undefined error`,
+                500,
+                { azError: 'Unknown error' },
+                {} as GameError
+            ));
+        }
+        return new Err(error);
     }
 }
 

@@ -1,4 +1,5 @@
-import { UserProfile } from "./shared_models";
+/* eslint-disable @typescript-eslint/no-unused-vars */
+import { UserProfile } from './shared_models';
 
 export enum Weapon {
     Knight = "Knight",
@@ -45,7 +46,7 @@ export interface CalculatedState {
 
 
 export interface Player {
-    userData: UserProfile;
+    profile: UserProfile;
     roads: Road[];
     buildings: Building[];
     harbors: Harbor[];
@@ -55,6 +56,11 @@ export interface Player {
     badRolls: number;
     state: CalculatedState;
 }
+
+export function isEqualPlayer(a: Player | undefined, b: Player | undefined): boolean {
+    return a?.profile.userId === b?.profile.userId;
+}
+
 export enum TileResource {
     Back = "back.png",
     Brick = "brick.png",
@@ -76,6 +82,7 @@ export interface TileKey {
     r: number;
     s: number;
 }
+
 export enum Direction {
     North = 'North',
     NorthEast = 'NorthEast',
@@ -95,13 +102,36 @@ export enum BuildingPosition {
 }
 
 export interface Tile {
+    tileKey: TileKey;
     currentResource: TileResource;
     originalResource: TileResource;
     roll: number;
-    tileKey: TileKey;
     roads: Map<Direction, Road>;
     ownedBuildings: Map<BuildingPosition, Building>;
 }
+
+export function isEqualTileKey(a: TileKey, b: TileKey): boolean {
+    return a.q === b.q && a.r === b.r && a.s === b.s;
+}
+
+export function isEqualTile(a: Tile, b: Tile | undefined): boolean {
+    if (b === undefined) {
+        return false;
+    }
+    return (a.currentResource == b.currentResource && a.originalResource == b.originalResource
+        && a.roll == b.roll && isEqualTileKey(a.tileKey, b.tileKey));
+
+}
+
+export function findTile(tileKey: TileKey, tiles: Tile[]): Tile | undefined {
+    return tiles.find(t => isEqualTileKey(t.tileKey, tileKey));
+}
+
+export function findRoad(roadKey: RoadKey, roads: Road[]): Road | undefined {
+    return roads.find(t => isEqualRoadKey(roadKey, roadKey));
+}
+
+
 export enum HarborType {
     Wheat = "wheat",
     Wood = "wood",
@@ -114,15 +144,27 @@ export interface HarborKey {
     tileKey: TileKey;
     position: Direction;
 }
+
+export function isEqualHarborKey(key1: HarborKey, key2: HarborKey): boolean {
+    return isEqualTileKey(key1.tileKey, key2.tileKey) && key1.position === key2.position;
+}
 //"{"harborKey":{"tileKey":{"q":-1,"r":2,"s":3},"position":"South"},"harborType":"ore"}"
 export interface Harbor {
-    harborKey: HarborKey; 
+    harborKey: HarborKey;
     harborType: HarborType;
+}
+export function isEqualHarbor(a: Harbor, b: Harbor) {
+    return isEqualHarborKey(a.harborKey, b.harborKey) && a.harborType === b.harborType;
 }
 export interface RoadKey {
     tileKey: TileKey;
     direction: Direction;
 }
+
+export function isEqualRoadKey(a: RoadKey, b: RoadKey): boolean {
+    return isEqualTileKey(a.tileKey, b.tileKey) && a.direction === b.direction;
+}
+
 export enum RoadState {
     Unbuilt = "Unbuilt",
     Road = "Road",
@@ -130,16 +172,56 @@ export enum RoadState {
 }
 
 export interface Road {
-    primaryKey: RoadKey;
+    roadKey: RoadKey;
     aliases: RoadKey[];
     adjacentRoads: Road[];
     owner: UserProfile | undefined;
     state: RoadState;
 }
 
+export function isEqualRoad(r1: Road | undefined, r2: Road | undefined): boolean {
+    if (r1 === undefined || r2 === undefined) return false;
+
+    if (!isEqualRoadKey(r1.roadKey, r2.roadKey)) return false;
+
+    if (r1.aliases.length !== r2.aliases.length) return false;
+
+    // all road 1 aliases must be in road 2
+    for (const key of r1.aliases) {
+        const found = r2.aliases.find((k) => k === key);
+        if (!found) return false;
+    }
+
+    //adjacent roads must be the same
+    if (r1.adjacentRoads.length != r2.adjacentRoads.length) return false;
+
+    //
+    //  make sure keys match
+    for (const road of r1.adjacentRoads) {
+        const found = r2.adjacentRoads.find((r) => r.roadKey === road.roadKey);
+        if (!found) return false;
+    }
+
+    if (r1.state !== r2.state) return false;
+
+    if (r1.owner !== null && r1.owner !== undefined) {
+        if (r2.owner !== null && r2.owner !== undefined) {
+            if (r1.owner.userId !== r2.owner.userId) return false;
+        }
+
+    }
+
+    return true;
+}
+
+
 export interface BuildingKey {
     buildingPosition: BuildingPosition;
     tileKey: TileKey;
+}
+
+export function isEqualBuildingKey(k1: BuildingKey, k2: BuildingKey): boolean {
+    return k1.buildingPosition === k2.buildingPosition && isEqualTileKey(k1.tileKey, k2.tileKey);
 }
 
 export enum BuildingState {
@@ -164,7 +246,7 @@ export enum GameAction {
     Redo = "Redo",
 }
 
-export enum CatanGames {
+export enum CatanGameType {
     Regular = "Regular",
     Expansion = "Expansion",
     Seafarers = "Seafarers",
@@ -179,6 +261,32 @@ export interface Building {
     ownerId?: string;
     state: BuildingState;
 }
+
+export function isEqualBuilding(b1: Building, b2: Building | undefined): boolean{
+    if (b2 === undefined) return false;
+    if (b1.buildingKey !== b2.buildingKey) return false;
+    if (b1.connectedTiles.length !== b2.connectedTiles.length) return false;
+    if (b1.aliases.length !== b2.aliases.length) return false;
+    if (b1.pipCount !== b2.pipCount) return false;
+    if (b1.state !== b2.state) return false;
+
+    for (const tileKey of b1.connectedTiles){
+        const found = b2.connectedTiles.find( (key) => isEqualTileKey(key, tileKey));
+        if (!found) return false;
+    }
+    for (const buildingKey of b1.aliases) {
+        const found = b2.aliases.find((key) => isEqualBuildingKey(key, buildingKey));
+        if (!found) return false;
+    }
+
+    if (b1.ownerId !== null && b1.ownerId !== undefined) {
+        if (b2.ownerId !== null && b2.ownerId !== undefined) {
+            if (b1.ownerId !== b2.ownerId) return false;
+        }
+
+    }
+    return true;
+}
 export enum GameState {
     AddingPlayers = 'AddingPlayers',
     ChoosingBoard = 'ChoosingBoard',
@@ -191,9 +299,7 @@ export enum GameState {
     Supplemental = 'Supplemental',
 }
 
-export interface StateData {
-    gameState: GameState;
-}
+
 
 export type PlayerEntry = [string, Player];
 export type HarborEntry = [HarborKey, Harbor];
@@ -201,7 +307,7 @@ export type RoadEntry = [RoadKey, Road];
 export type BuildingEntry = [BuildingKey, Building];
 export type TileEntry = [TileKey, Tile];
 
-export interface RegularGame {
+export interface ServiceGame {
     gameId: string;
     players: PlayerEntry[];
     tiles: TileEntry[];
@@ -210,10 +316,83 @@ export interface RegularGame {
     buildings: BuildingEntry[];
     currentPlayerId: string;
     playerOrder: string[];
-    stateData: StateData;
+    gameState: GameState;
     creatorId: string;
     baronTile: TileKey;
+    canUndo: boolean,
     shuffleCount: number;
+    gameIndex: number,
+    gameType: CatanGameType
+}
+
+export interface ClientGame {
+    gameId: string;
+    players: Player[];
+    tiles: Tile[];
+    harbors: Harbor[];
+    roads: Road[];
+    buildings: Building[];
+    currentPlayerId: string;
+    playerOrder: string[];
+    gameState: GameState;
+    creatorId: string;
+    baronTile: TileKey;
+    canUndo: boolean,
+    shuffleCount: number;
+    gameIndex: number,
+    gameType: CatanGameType
+}
+
+export function serviceToClientGame(serviceGame: ServiceGame): ClientGame {
+
+    return {
+        gameId: serviceGame.gameId,
+        players: serviceGame.players.map(entry => entry[1]),
+        tiles: serviceGame.tiles.map(entry => entry[1]),
+        harbors: serviceGame.harbors.map(entry => entry[1]),
+        roads: serviceGame.roads.map(entry => entry[1]),
+        buildings: serviceGame.buildings.map(entry => entry[1]),
+        currentPlayerId: serviceGame.currentPlayerId,
+        playerOrder: [...serviceGame.playerOrder],
+        gameState: serviceGame.gameState,
+        creatorId: serviceGame.creatorId,
+        baronTile: { ...serviceGame.baronTile },
+        canUndo: serviceGame.canUndo,
+        shuffleCount: serviceGame.shuffleCount,
+        gameIndex: serviceGame.gameIndex,
+        gameType: serviceGame.gameType
+
+    };
+}
+
+export function clientToServiceGame(clientGame: ClientGame): ServiceGame {
+    return {
+        gameId: clientGame.gameId,
+        players: clientGame.players.map(player => [player.profile.userId as string, player]),
+        tiles: clientGame.tiles.map(tile => [tile.tileKey, tile]),
+        harbors: clientGame.harbors.map(harbor => [harbor.harborKey, harbor]),
+        roads: clientGame.roads.map(road => [road.roadKey, road]),
+        buildings: clientGame.buildings.map(building => [building.buildingKey, building]),
+        currentPlayerId: clientGame.currentPlayerId,
+        playerOrder: [...clientGame.playerOrder],
+        gameState: clientGame.gameState,
+        creatorId: clientGame.creatorId,
+        baronTile: clientGame.baronTile,
+        canUndo: clientGame.canUndo,
+        shuffleCount: clientGame.shuffleCount,
+        gameIndex: clientGame.gameIndex,
+        gameType: clientGame.gameType
+    };
+}
+
+export function logGames(game1: ClientGame, game2: ClientGame) {
+    for (let i=0; i<game1.tiles.length; i++){
+        console.log(`key: %o %o\nresource: %s %s\nroll: %s %s`,
+            game1.tiles[i].tileKey, game2.tiles[i].tileKey,
+            game1.tiles[i].currentResource, game2.tiles[i].currentResource,
+            game1.tiles[i].roll, game2.tiles[i].roll);
+
+    }
 }
 
 

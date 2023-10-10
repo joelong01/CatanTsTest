@@ -1,5 +1,5 @@
 
-import { CatanGames, GameAction, RegularGame } from './game_models';
+import { ClientGame, clientToServiceGame, ServiceGame } from './game_models';
 
 
 export interface ResponseType {
@@ -25,12 +25,17 @@ export class ServiceError {
 
 export class TestCallContext {
     phoneCode?: number | null;
-    game?: RegularGame | null;
+    game?: ServiceGame | null;
 
-    constructor(phoneCode?: number | null, game?: RegularGame | null) {
+    constructor(phoneCode?: number | null, game?: ClientGame | null) {
 
         this.phoneCode = phoneCode ?? null;
-        this.game = game ?? null;
+        if (game != null) {
+            this.game = clientToServiceGame(game)
+        } else {
+            this.game = null;
+        }
+
     }
 }
 
@@ -139,7 +144,7 @@ export interface ErrorData {
 }
 
 export interface CatanMessageMap {
-    gameUpdate: RegularGame;
+    gameUpdate: ServiceGame;
     invite: Invitation;
     invitationResponse: InvitationResponseData;
     gameCreated: GameCreatedData;
@@ -153,13 +158,7 @@ export type CatanMessage = {
     [K in keyof CatanMessageMap]?: CatanMessageMap[K];
 };
 
-export function isCatanMessage(obj: any): CatanMessage | null {
-    if (obj && (obj.GameUpdate || obj.Invite || obj.InvitationResponse || obj.GameCreated ||
-        obj.PlayerAdded || obj.Started || obj.Ended || obj.Error)) {
-        return obj;
-    }
-    return null;
-}
+
 
 
 export enum GameStatus {

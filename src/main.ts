@@ -1,5 +1,5 @@
 import CatanServiceProxy from "./proxy"
-import { ProfileStorage, ServiceError, UserProfile, UserType } from './Models/shared_models';
+import { ProfileStorage, UserProfile, UserType } from './Models/shared_models';
 import { loadAdminProfileFromConfig } from "./testHelpers";
 import { GameWorkerManager } from "./gameworker";
 
@@ -13,7 +13,7 @@ import { GameWorkerManager } from "./gameworker";
 
     const admin_password = process.env.ADMIN_PASSWORD;
 
-    var admin_auth_token = (await proxy
+    const admin_auth_token = (await proxy
         .login(admin_profile.pii?.email as string, admin_password as string, ProfileStorage.CosmosDb))
         .expect("login to work");
 
@@ -42,14 +42,14 @@ import { GameWorkerManager } from "./gameworker";
         validatedPhone: false
     };
 
-    let result = (await proxy.registerTestUser(main_profile, test_password))
+    const result = (await proxy.registerTestUser(main_profile, test_password))
     if (result.isOk()) {
         console.log("profile returned from register_test_user: %o", result.getValue());
     } else {
-        let err = result.getError();
+        const err = result.getError();
         console.log("registerTestUser error: %o", err);
     }
-    let user_auth_token = (await proxy.login(main_profile.pii?.email as string, test_password, ProfileStorage.CosmosDbTest))
+    const user_auth_token = (await proxy.login(main_profile.pii?.email as string, test_password, ProfileStorage.CosmosDbTest))
         .expect("login of a newly registered test account should work");
 
     proxy.setAuthToken(user_auth_token);
@@ -83,7 +83,7 @@ import { GameWorkerManager } from "./gameworker";
     //  here we are going through the already registered users and making sure that the ones we want are registered
     //  it is possible to run these tests over and over, so we want to check and then create instead of simply
     //  creating and getting an error.  this is also what the client will probably do.
-    var local_profiles = (await proxy.getLocalUsers("Self")).expect("to be able to get my own profile");
+    const local_profiles = (await proxy.getLocalUsers("Self")).expect("to be able to get my own profile");
     console.log(local_profiles);
     if (!local_profiles.find(profile => profile.displayName.includes(local_user_1.displayName))) {
         (await proxy.createLocalUser(local_user_1)).expect("to be able to create a local user");
