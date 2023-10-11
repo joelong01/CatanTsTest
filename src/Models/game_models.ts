@@ -301,29 +301,7 @@ export enum GameState {
 
 
 
-export type PlayerEntry = [string, Player];
-export type HarborEntry = [HarborKey, Harbor];
-export type RoadEntry = [RoadKey, Road];
-export type BuildingEntry = [BuildingKey, Building];
-export type TileEntry = [TileKey, Tile];
 
-export interface ServiceGame {
-    gameId: string;
-    players: PlayerEntry[];
-    tiles: TileEntry[];
-    harbors: HarborEntry[];
-    roads: RoadEntry[];
-    buildings: BuildingEntry[];
-    currentPlayerId: string;
-    playerOrder: string[];
-    gameState: GameState;
-    creatorId: string;
-    baronTile: TileKey;
-    canUndo: boolean,
-    shuffleCount: number;
-    gameIndex: number,
-    gameType: CatanGameType
-}
 
 export interface ClientGame {
     gameId: string;
@@ -343,47 +321,7 @@ export interface ClientGame {
     gameType: CatanGameType
 }
 
-export function serviceToClientGame(serviceGame: ServiceGame): ClientGame {
 
-    return {
-        gameId: serviceGame.gameId,
-        players: serviceGame.players.map(entry => entry[1]),
-        tiles: serviceGame.tiles.map(entry => entry[1]),
-        harbors: serviceGame.harbors.map(entry => entry[1]),
-        roads: serviceGame.roads.map(entry => entry[1]),
-        buildings: serviceGame.buildings.map(entry => entry[1]),
-        currentPlayerId: serviceGame.currentPlayerId,
-        playerOrder: [...serviceGame.playerOrder],
-        gameState: serviceGame.gameState,
-        creatorId: serviceGame.creatorId,
-        baronTile: { ...serviceGame.baronTile },
-        canUndo: serviceGame.canUndo,
-        shuffleCount: serviceGame.shuffleCount,
-        gameIndex: serviceGame.gameIndex,
-        gameType: serviceGame.gameType
-
-    };
-}
-
-export function clientToServiceGame(clientGame: ClientGame): ServiceGame {
-    return {
-        gameId: clientGame.gameId,
-        players: clientGame.players.map(player => [player.profile.userId as string, player]),
-        tiles: clientGame.tiles.map(tile => [tile.tileKey, tile]),
-        harbors: clientGame.harbors.map(harbor => [harbor.harborKey, harbor]),
-        roads: clientGame.roads.map(road => [road.roadKey, road]),
-        buildings: clientGame.buildings.map(building => [building.buildingKey, building]),
-        currentPlayerId: clientGame.currentPlayerId,
-        playerOrder: [...clientGame.playerOrder],
-        gameState: clientGame.gameState,
-        creatorId: clientGame.creatorId,
-        baronTile: clientGame.baronTile,
-        canUndo: clientGame.canUndo,
-        shuffleCount: clientGame.shuffleCount,
-        gameIndex: clientGame.gameIndex,
-        gameType: clientGame.gameType
-    };
-}
 
 export function logGames(game1: ClientGame, game2: ClientGame) {
     for (let i=0; i<game1.tiles.length; i++){

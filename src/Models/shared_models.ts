@@ -1,5 +1,5 @@
-
-import { ClientGame, clientToServiceGame, ServiceGame } from './game_models';
+import { ClientGame } from "./game_models";
+import { GameWireFormat, clientToServiceGame } from "./wire_formats";
 
 
 export interface ResponseType {
@@ -8,7 +8,7 @@ export interface ResponseType {
     todo?: string;
     noData?: null;
     sendMessageError?: [string, GameError][];
-    serviceMessage?: CatanMessage;
+    serviceMessage?: ServiceMessage;
     azError?: string;
     jsonError?: string;
     containerError?: string;
@@ -25,7 +25,7 @@ export class ServiceError {
 
 export class TestCallContext {
     phoneCode?: number | null;
-    game?: ServiceGame | null;
+    game?: GameWireFormat | null;
 
     constructor(phoneCode?: number | null, game?: ClientGame | null) {
 
@@ -143,21 +143,26 @@ export interface ErrorData {
     message: string;
 }
 
-export interface CatanMessageMap {
-    gameUpdate: ServiceGame;
-    invite: Invitation;
-    invitationResponse: InvitationResponseData;
-    gameCreated: GameCreatedData;
-    playerAdded: string[];
-    started: string;
-    ended: string;
-    error: ErrorData;
+
+
+export type ServiceMessage =
+    | { type: 'gameUpdate', payload: ClientGame }
+    | { type: 'invite', payload: Invitation }
+    | { type: 'invitationResponse', payload: InvitationResponseData }
+    | { type: 'gameCreated', payload: GameCreatedData }
+    | { type: 'playerAdded', payload: string[] }  
+    | { type: 'started', payload: string }  
+    | { type: 'ended', payload: string }  
+    | { type: 'error', payload: ErrorData }
+
+
+
+export function isMessageType<T extends ServiceMessage['type']>(
+    message: ServiceMessage,
+    type: T
+): message is Extract<ServiceMessage, { type: T }> {
+    return message.type === type;
 }
-
-export type CatanMessage = {
-    [K in keyof CatanMessageMap]?: CatanMessageMap[K];
-};
-
 
 
 

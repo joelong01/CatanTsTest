@@ -1,36 +1,29 @@
 import { Worker } from 'worker_threads';
 import {
-    CatanGameType, GameAction, ClientGame, findTile, isEqualTile, clientToServiceGame,
-    serviceToClientGame, isEqualTileKey, findRoad,  isEqualRoad, isEqualBuildingKey, isEqualBuilding
+    CatanGameType, GameAction, ClientGame, findTile, isEqualTile, 
+    isEqualTileKey, findRoad, isEqualRoad, isEqualBuildingKey, isEqualBuilding, Player
 } from './Models/game_models';
-import {
-    Invitation, InvitationResponseData, GameCreatedData, ErrorData,
-    CatanMessageMap
-} from './Models/shared_models';
+
 import CatanServiceProxy from './proxy';
-import _ from 'lodash';
 import { serialize } from 'v8';
 import assert from 'assert';
+import { ServiceMessage, Invitation, InvitationResponseData, GameCreatedData, ErrorData } from './Models/shared_models';
+import { serviceToClientGame, clientToServiceGame } from './Models/wire_formats';
 
 
 
 export interface WorkerInitData {
     authToken: string;
-    // Add any other data as needed
+    host: string;
 }
 
 export interface WorkerMessage {
     type: 'init' | 'quit'; // you can expand this union type as needed
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    data: WorkerInitData | any; // use more specific types as needed
+    data: WorkerInitData; // use more specific types as needed
 }
 
-export type ServiceMessage = {
-    [K in keyof CatanMessageMap]: {
-        type: K,
-        data: CatanMessageMap[K]
-    }
-}[keyof CatanMessageMap];
+
 
 
 export class GameWorkerManager {
@@ -62,40 +55,40 @@ export class GameWorkerManager {
         (await this.proxy.joinLobby()).expect("joining lobby should work");
 
 
-        this.postMessage({ type: 'init', data: { authToken: this.proxy.getAuthToken() } });
+        this.postMessage({ type: 'init', data: { authToken: this.proxy.getAuthToken() as string, host: "https://localhost:8080" } });
         this.game = (await this.proxy.newGame(CatanGameType.Regular)).expect("newGame should not fail");
         //
         // next we should get a Created message
     }
 
     private handleMessage(message: ServiceMessage) {
+
         console.log("received message: ", message.type);
         switch (message.type) {
             case 'gameUpdate': {
-                const clientGame = serviceToClientGame(message.data);
-                this.handleGameUpdate(clientGame);
+                this.handleGameUpdate(message.payload);
             }
                 break;
             case 'invite':
-                this.handleInvite(message.data);
+                this.handleInvite(message.payload);
                 break;
             case 'invitationResponse':
-                this.handleInvitationResponse(message.data);
+                this.handleInvitationResponse(message.payload);
                 break;
             case 'gameCreated':
-                this.handleGameCreated(message.data);
+                this.handleGameCreated(message.payload);
                 break;
             case 'playerAdded':
-                this.handlePlayerAdded(message.data);
+                this.handlePlayerAdded(message.payload);
                 break;
             case 'started':
-                this.handleStarted(message.data);
+                this.handleStarted(message.payload);
                 break;
             case 'ended':
-                this.handleEnded(message.data);
+                this.handleEnded(message.payload);
                 break;
             case 'error':
-                this.handleErrorData(message.data);
+                this.handleErrorData(message.payload);
                 break;
             default:
                 console.log('Received unknown message:', message);
@@ -141,26 +134,37 @@ export class GameWorkerManager {
             console.log("now valid actions: ", actions);
             const game = (await this.proxy.shuffleBoard(this.game!.gameId, undefined)).expect("success newBoard");
             console.log("new game created: %o", game);
-            assert(!_.isEqual(game, this.game), "games should be different");
-            assert(_.isEqual(game.players, this.game?.players), "players should be the same");
-            assert(_.isEqual(game.gameId, this.game?.gameId), "ids should be the same");
+            assert(!this.sameGame(game, this.game), "games should be different");
+            assert(this.samePlayers(game.players, this.game?.players), "players should be the same");
+            assert(game.gameId == this.game?.gameId, "ids should be the same");
 
-            const local_game: ClientGame = _.cloneDeep(this.game) as ClientGame;
+            const local_game: ClientGame = JSON.parse(JSON.stringify(this.game));
 
-            assert(this.isSameGame(local_game, this.game as ClientGame), "clone deep yields same game");
+            assert(this.sameGame(local_game, this.game as ClientGame), "clone deep yields same game");
             const services_game = clientToServiceGame(local_game);
             const game2 = serviceToClientGame(services_game);
-            assert(this.isSameGame(local_game, game2), "client/service game round trip yeils the same game");
+            assert(this.sameGame(local_game, game2), "client/service game round trip yeils the same game");
             const shuffled_game = (await this.proxy.shuffleBoard(this.game!.gameId, local_game)).expect("success newBoard");
-            assert(this.isSameGame(shuffled_game, local_game), "shuffled game with call context returns passed in game");
+            assert(this.sameGame(shuffled_game, local_game), "shuffled game with call context returns passed in game");
             assert(isEqualTileKey(shuffled_game.baronTile, local_game?.baronTile), "newBoard with test call context has the same baron")
-       //     logGames(shuffled_game, local_game);
+            //     logGames(shuffled_game, local_game);
 
 
         }
     }
+    samePlayers(p1: Player[], p2: Player[] | undefined): boolean {
+        for (const player of p1) {
+            if (!p2?.find((p) => p.profile.userId === player.profile.userId)) {
+                return false;
+            }
+        }
 
-    private isSameGame(game1: ClientGame, game2: ClientGame): boolean {
+        return true;
+    }
+
+    private sameGame(game1: ClientGame | undefined, game2: ClientGame | undefined): boolean {
+        if (game2 === undefined) return false;
+        if (game1 === undefined) return false;
         game1.tiles.forEach((tile) => {
             const tile2 = findTile(tile.tileKey, game2.tiles);
             if (!isEqualTile(tile, tile2)) {
@@ -175,8 +179,8 @@ export class GameWorkerManager {
             }
         })
 
-        game1.buildings.forEach((building)=> {
-            const building2 = game2.buildings.find( (b) => isEqualBuildingKey(b.buildingKey, building.buildingKey));
+        game1.buildings.forEach((building) => {
+            const building2 = game2.buildings.find((b) => isEqualBuildingKey(b.buildingKey, building.buildingKey));
             if (!isEqualBuilding(building, building2)) return false;
         })
 

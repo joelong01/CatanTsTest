@@ -1,28 +1,30 @@
-// worker.ts
-import { parentPort } from 'worker_threads';
+/* eslint-disable @typescript-eslint/no-unused-vars */
+
+import { AxiosError } from "axios";
+import { parentPort } from "worker_threads";
+import { xformWireFormatToClientFormat } from "./Models/wire_formats";
+import { WorkerMessage } from "./gameworker";
 import CatanServiceProxy from "./proxy";
-import { CatanMessage, CatanMessageMap } from './Models/shared_models';
-import { WorkerMessage, WorkerInitData } from './gameworker';
-import { AxiosError } from 'axios';
+
+
+
+
 
 
 parentPort?.on('message', (message: WorkerMessage) => {
     console.log("parentPort?.on: ", message);
-    console.log("worker authToken: ", message.data.authToken);
-    console.log("worker cosmos: ", message.data.useCosmos);
     switch (message.type) {
         case 'init': {
-            const { authToken } = message.data as WorkerInitData;
-            longPollingLoop(authToken);
+
+            longPollingLoop(message.data.authToken, message.data.host);
             break;
         }
-        // handle other message types as needed
     }
 });
 
-async function longPollingLoop(authToken: string) {
+async function longPollingLoop(authToken: string, host: string) {
 
-    const proxy = new CatanServiceProxy("https://localhost:8080", authToken);
+    const proxy = new CatanServiceProxy(host, authToken);
 
     let gameId: string | undefined;
     let index: number = 0;
@@ -33,20 +35,14 @@ async function longPollingLoop(authToken: string) {
             const pollResponse = await proxy.longPoll();
             console.log("returned from longPoll", pollResponse);
             if (pollResponse.isOk()) {
-                const message: CatanMessage = pollResponse.getValue();
+                const message = xformWireFormatToClientFormat(pollResponse.getValue());
                 console.log("long_poll.  message=%o", message);
-                const messageType = getMessageType(message);
-                if (messageType && Object.prototype.hasOwnProperty.call(message, messageType)) {
-                    // let messageData: unknown = message[messageType];
-                    // if (messageType === "gameCreated") {
-                    //     gameId = message.gameCreated?.gameId as string;
-                    // } else if (messageType === "gameUpdate") {
-                    //   messageData = serviceToClientGame(messageData as ServiceGame) as ClientGame;
-                    // }
-                    parentPort?.postMessage({ type: messageType, data: message[messageType] });
-
+                if (message.type == "gameCreated") {
+                    gameId = message.payload.gameId;
                 }
+                parentPort?.postMessage(message);
                 index++;
+
             } else {
                 let version_response;
                 do {
@@ -84,13 +80,6 @@ async function longPollingLoop(authToken: string) {
 
 }
 
-function getMessageType(message: CatanMessage): keyof CatanMessageMap | null {
-    for (const key of Object.keys(message) as Array<keyof CatanMessageMap>) {
-        if (message[key] !== undefined) {
-            return key;
-        }
-    }
-    return null;
-}
+
 
 
